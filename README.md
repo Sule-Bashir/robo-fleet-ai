@@ -115,6 +115,19 @@ python3 main.py
          │                                │                                       │
          │                                │                                       │
          ▼                                ▼                                       ▼
+System Architecture Summary:
+┌─────────────────────────────────────┐
+│     🤖 RoboFleet AI Manager         │
+├─────────────────────────────────────┤
+│  • Flask Backend (Python)           │
+│  • Digital Twin Warehouse Map       │
+│  • AI Command Center                │
+│  • Task Execution Tracking          │
+│  • Real-time Analytics              │
+│  • Vultr Cloud Backend ✅          │
+│  • Mobile Optimized UI              │
+│  • Emergency Stop System            │
+└─────────────────────────────────────┘
     User Interface            Central Control System                    Warehouse Simulation
     • Real-time UI            • Robot State Management                  • 10×10 Grid Map
     • Analytics Dashboard     • AI Decision Processing                  • Item Tracking
