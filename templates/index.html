@@ -18,8 +18,8 @@
             </div>
             <div class="header-right">
                 <div class="simulation-status">
-                    <span class="status-indicator"></span>
-                    <span>SIMULATION READY</span>
+                    <span class="status-indicator" id="statusIndicator"></span>
+                    <span id="simStatus">SIMULATION READY</span>
                 </div>
                 <div class="time-display" id="currentTime">--:--:--</div>
             </div>
@@ -77,6 +77,7 @@
                             <span class="legend-item"><span class="robot-color"></span> Robot</span>
                             <span class="legend-item"><span class="charging-color"></span> Charging</span>
                             <span class="legend-item"><span class="shelf-color"></span> Shelf</span>
+                            <span class="legend-item"><span class="storage-color"></span> Storage</span>
                         </div>
                     </div>
                 </div>
@@ -85,6 +86,7 @@
                 <div class="card">
                     <div class="card-header">
                         <h2><i class="fas fa-comments"></i> AI Command Center</h2>
+                        <span class="vultr-badge">Powered by Vultr</span>
                     </div>
                     <div class="ai-input-group">
                         <input type="text" id="aiCommand" 
@@ -95,20 +97,20 @@
                         </button>
                     </div>
                     <div class="ai-response" id="aiResponse">
-                        Hello! I'm your AI fleet manager. Ready to optimize warehouse operations.
+                        <i class="fas fa-robot"></i> Hello! I'm your AI fleet manager powered by Vultr. Ready to optimize warehouse operations.
                     </div>
                     <div class="quick-commands">
                         <button class="quick-btn" onclick="quickCommand('battery')">
-                            <i class="fas fa-battery-half"></i> Battery
+                            <i class="fas fa-battery-half"></i> Battery Report
                         </button>
                         <button class="quick-btn" onclick="quickCommand('optimize')">
-                            <i class="fas fa-route"></i> Optimize
+                            <i class="fas fa-route"></i> Optimize Routes
                         </button>
                         <button class="quick-btn" onclick="quickCommand('emergency')">
-                            <i class="fas fa-exclamation-triangle"></i> Emergency
+                            <i class="fas fa-exclamation-triangle"></i> Emergency Stop
                         </button>
                         <button class="quick-btn" onclick="quickCommand('status')">
-                            <i class="fas fa-chart-bar"></i> Status
+                            <i class="fas fa-chart-bar"></i> System Status
                         </button>
                     </div>
                 </div>
@@ -137,8 +139,11 @@
                             <button class="btn-start" onclick="toggleSimulation()" id="simBtn">
                                 <i class="fas fa-play"></i> Start Simulation
                             </button>
-                            <button class="btn-start" style="background:#8b5cf6" onclick="assignRandomTask()">
+                            <button class="btn-start" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)" onclick="assignRandomTask()">
                                 <i class="fas fa-random"></i> Random Task
+                            </button>
+                            <button class="btn-start emergency" onclick="emergencyStop()" id="emergencyBtn">
+                                <i class="fas fa-exclamation-triangle"></i> Emergency Stop
                             </button>
                         </div>
                         <div class="simulation-stats">
@@ -163,15 +168,18 @@
         <!-- Footer -->
         <footer class="dashboard-footer">
             <div class="footer-left">
-                <p>Built for <strong>AI Meets Robotics Hackathon 2026</strong></p>
-                <p>Flask • Digital Twin • AI-Powered Robotics</p>
+                <p><strong>AI Meets Robotics Hackathon 2026</strong> | Track 3: Task Execution</p>
+                <p>Flask • Digital Twin • AI-Powered Robotics • Vultr Backend</p>
             </div>
             <div class="footer-right">
                 <div class="system-health">
-                    <span class="status-indicator"></span>
-                    <span>System: <strong>HEALTHY</strong></span>
+                    <span class="status-indicator" id="healthIndicator"></span>
+                    <span>System: <strong id="systemHealth">HEALTHY</strong></span>
                 </div>
                 <div class="last-update" id="lastUpdate">Last update: --:--:--</div>
+                <div class="vultr-status">
+                    <i class="fas fa-server"></i> Vultr Backend: <span id="vultrStatus">Connected</span>
+                </div>
             </div>
         </footer>
     </div>
@@ -180,15 +188,24 @@
     <script>
         const API_URL = window.location.origin;
         let simRunning = false;
+        let emergencyMode = false;
+        let currentTasks = {};
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             updateTime();
             loadRobots();
             loadMap();
+            updateSystemHealth();
+
+            // Set up intervals
             setInterval(updateTime, 1000);
             setInterval(loadRobots, 3000);
             setInterval(updateSimStats, 2000);
+            setInterval(updateSystemHealth, 5000);
+
+            // Test Vultr connection
+            testVultrConnection();
         });
 
         // Time functions
@@ -199,72 +216,132 @@
             document.getElementById('lastUpdate').textContent = `Last update: ${timeStr}`;
         }
 
-        // Load robots
+        // Test Vultr connection
+        async function testVultrConnection() {
+            try {
+                const res = await fetch(API_URL + '/api/vultr/info');
+                const data = await res.json();
+                document.getElementById('vultrStatus').textContent = data.status;
+                document.getElementById('vultrStatus').style.color = '#10b981';
+            } catch (error) {
+                document.getElementById('vultrStatus').textContent = 'Disconnected';
+                document.getElementById('vultrStatus').style.color = '#ef4444';
+            }
+        }
+
+        // Load robots with enhanced visuals
         async function loadRobots() {
             try {
                 const res = await fetch(API_URL + '/api/robots');
-                const robots = await res.json();
+                const data = await res.json();
+                const robots = data.robots;
+                const taskData = data.task_execution;
 
                 let html = '';
                 let totalBattery = 0;
+                let workingRobots = 0;
 
                 robots.forEach(robot => {
-                    let statusClass = '';
-                    let statusIcon = '';
+                    const status = robot.status;
+                    const battery = robot.battery;
 
-                    if (robot.status === 'working') {
-                        statusClass = 'working';
-                        statusIcon = '🔄';
-                    } else if (robot.status === 'charging') {
-                        statusClass = 'charging';
-                        statusIcon = '🔋';
-                    } else if (robot.status === 'maintenance') {
-                        statusClass = 'maintenance';
-                        statusIcon = '🔧';
-                    } else {
-                        statusClass = 'idle';
-                        statusIcon = '⏹️';
+                    // Count working robots
+                    if (status === 'working') workingRobots++;
+
+                    totalBattery += battery;
+
+                    let statusIcon = '';
+                    let statusText = '';
+                    let batteryClass = '';
+
+                    switch(status) {
+                        case 'working':
+                            statusIcon = '🔄';
+                            statusText = 'Working';
+                            break;
+                        case 'charging':
+                            statusIcon = '🔋';
+                            statusText = 'Charging';
+                            break;
+                        case 'maintenance':
+                            statusIcon = '🔧';
+                            statusText = 'Maintenance';
+                            break;
+                        default:
+                            statusIcon = '⏹️';
+                            statusText = 'Idle';
                     }
 
+                    // Determine battery color class
+                    if (battery > 70) batteryClass = 'high';
+                    else if (battery > 30) batteryClass = 'medium';
+                    else batteryClass = 'low';
+
+                    // Get task progress if available
+                    const progress = taskData[robot.id] ? taskData[robot.id].progress : 0;
+                    const taskType = taskData[robot.id] ? taskData[robot.id].current_task : 'none';
+
                     html += `
-                    <div class="robot-item ${statusClass}">
+                    <div class="robot-item ${status}">
                         <div class="robot-header">
                             <div class="robot-name">
-                                <span>${statusIcon}</span>
-                                <h3>${robot.name}</h3>
-                                <span class="robot-type">${robot.type}</span>
+                                <span style="font-size:1.5rem">${statusIcon}</span>
+                                <div>
+                                    <h3>${robot.name}</h3>
+                                    <span class="robot-type">${robot.type}</span>
+                                </div>
                             </div>
-                            <div class="robot-battery" style="background:${robot.battery > 50 ? '#10b98120' : robot.battery > 20 ? '#f59e0b20' : '#ef444420'};color:${robot.battery > 50 ? '#10b981' : robot.battery > 20 ? '#f59e0b' : '#ef4444'}">
-                                ${robot.battery}%
+                            <div>
+                                <div class="robot-battery" style="background:${battery > 70 ? '#10b98120' : battery > 30 ? '#f59e0b20' : '#ef444420'};color:${battery > 70 ? '#10b981' : battery > 30 ? '#f59e0b' : '#ef4444'}">
+                                    ${battery}%
+                                </div>
+                                <div class="battery-container">
+                                    <div class="battery-bar">
+                                        <div class="battery-level ${batteryClass}" style="width:${battery}%"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="robot-details">
                             <div><i class="fas fa-map-marker-alt"></i> ${robot.location}</div>
                             <div><i class="fas fa-tasks"></i> ${robot.task}</div>
                             <div><i class="fas fa-tachometer-alt"></i> ${robot.speed}</div>
-                            <div><i class="fas fa-bolt"></i> ${robot.battery}%</div>
+                            <div><i class="fas fa-bolt"></i> ${battery}% remaining</div>
                         </div>
+                        ${progress > 0 ? `
+                        <div class="task-progress">
+                            <small>${taskType} progress: ${progress}%</small>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width:${progress}%"></div>
+                            </div>
+                        </div>
+                        ` : ''}
                         <div class="robot-actions">
-                            <button class="action-btn" onclick="assignTask(${robot.id}, 'pick')" style="background:#10b98120;color:#10b981">Pick</button>
-                            <button class="action-btn" onclick="assignTask(${robot.id}, 'move')" style="background:#3b82f620;color:#3b82f6">Move</button>
-                            <button class="action-btn" onclick="assignTask(${robot.id}, 'charge')" style="background:#f59e0b20;color:#f59e0b">Charge</button>
+                            <button class="action-btn" onclick="assignTask(${robot.id}, 'pick')" style="background:#10b98120;color:#10b981;border:1px solid #10b981">
+                                <i class="fas fa-hand-paper"></i> Pick
+                            </button>
+                            <button class="action-btn" onclick="assignTask(${robot.id}, 'move')" style="background:#3b82f620;color:#3b82f6;border:1px solid #3b82f6">
+                                <i class="fas fa-truck"></i> Move
+                            </button>
+                            <button class="action-btn" onclick="assignTask(${robot.id}, 'charge')" style="background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b">
+                                <i class="fas fa-charging-station"></i> Charge
+                            </button>
                         </div>
                     </div>`;
-
-                    totalBattery += robot.battery;
                 });
 
                 document.getElementById('robotList').innerHTML = html;
                 document.getElementById('robotUpdateTime').textContent = new Date().toLocaleTimeString();
                 document.getElementById('avgBattery').textContent = Math.round(totalBattery / robots.length) + '%';
-                document.getElementById('totalRobots').textContent = robots.length;
+                document.getElementById('totalRobots').textContent = workingRobots;
+                document.getElementById('aiStatus').textContent = workingRobots > 0 ? 'ACTIVE' : 'IDLE';
 
             } catch (error) {
                 console.log('Error loading robots:', error);
             }
         }
 
-        // Load warehouse map
+        // Load warehouse map with real positions
         async function loadMap() {
             try {
                 const res = await fetch(API_URL + '/api/warehouse/map');
@@ -276,18 +353,27 @@
                         let cellClass = 'map-cell';
                         let content = '';
 
-                        if (cell.robot) {
+                        if (cell.has_robot) {
                             cellClass += ' robot-cell';
                             content = '🤖';
-                        } else if (cell.type === 'charging') {
+                        } else if (cell.cell_type === 'charging') {
                             cellClass += ' charging-cell';
                             content = '⚡';
-                        } else if (cell.type === 'shelf') {
+                        } else if (cell.cell_type === 'shelf') {
                             cellClass += ' shelf-cell';
-                            content = cell.items > 5 ? '📦' : '📦';
+                            content = cell.item_count > 10 ? '📦📦' : '📦';
+                        } else if (cell.cell_type === 'storage') {
+                            cellClass += ' storage-cell';
+                            content = '📦';
+                        } else if (cell.cell_type === 'packing') {
+                            cellClass += ' packing-cell';
+                            content = '📋';
+                        } else {
+                            cellClass += ' aisle-cell';
+                            content = '·';
                         }
 
-                        html += `<div class="${cellClass}" title="${cell.id}">${content}</div>`;
+                        html += `<div class="${cellClass}" title="${cell.label} - ${cell.cell_type}">${content}</div>`;
                     });
                 });
 
@@ -297,7 +383,7 @@
             }
         }
 
-        // AI Commands
+        // AI Commands with Vultr processing
         async function sendAICommand() {
             const input = document.getElementById('aiCommand');
             const command = input.value.trim();
@@ -305,7 +391,7 @@
             if (!command) return;
 
             input.value = '';
-            document.getElementById('aiResponse').innerHTML = '<i class="fas fa-cog fa-spin"></i> AI is thinking...';
+            document.getElementById('aiResponse').innerHTML = '<i class="fas fa-cog fa-spin"></i> AI processing via Vultr...';
 
             try {
                 const res = await fetch(API_URL + '/api/ai/command', {
@@ -315,27 +401,42 @@
                 });
 
                 const data = await res.json();
-                document.getElementById('aiResponse').innerHTML = data.response;
+                document.getElementById('aiResponse').innerHTML = data.ai_response;
+
+                // Update emergency mode if needed
+                if (data.emergency_mode !== undefined) {
+                    emergencyMode = data.emergency_mode;
+                    updateEmergencyUI();
+                }
+
                 loadRobots(); // Refresh robots
+                loadMap(); // Refresh map if needed
 
             } catch (error) {
-                document.getElementById('aiResponse').innerHTML = '❌ Error connecting to AI';
+                document.getElementById('aiResponse').innerHTML = '❌ Error connecting to Vultr AI backend';
             }
         }
 
         function quickCommand(type) {
             const commands = {
                 'battery': 'Check battery status for all robots',
-                'optimize': 'Optimize robot routes for efficiency',
-                'emergency': 'Emergency stop all robots',
-                'status': 'Get system status report'
+                'optimize': 'Optimize robot routes for maximum efficiency',
+                'emergency': 'Emergency stop all robots immediately',
+                'status': 'Get complete system status report',
+                'charge': 'Prioritize charging for low battery robots',
+                'task': 'Show task execution statistics'
             };
             document.getElementById('aiCommand').value = commands[type];
             sendAICommand();
         }
 
-        // Task assignment
+        // Task assignment with progress tracking
         async function assignTask(robotId, taskType) {
+            if (emergencyMode) {
+                alert('🚨 Cannot assign tasks during emergency stop');
+                return;
+            }
+
             try {
                 const res = await fetch(API_URL + '/api/task/assign', {
                     method: 'POST',
@@ -345,11 +446,22 @@
 
                 const data = await res.json();
                 if (data.success) {
-                    alert(`✅ ${data.message}`);
+                    // Show success notification
+                    document.getElementById('aiResponse').innerHTML = `✅ ${data.message}<br>${data.ai_optimization}`;
                     loadRobots();
+                    loadMap();
+
+                    // Store task for progress tracking
+                    currentTasks[robotId] = {
+                        type: taskType,
+                        startTime: new Date(),
+                        estimatedDuration: data.estimated_duration
+                    };
+                } else {
+                    alert(data.message);
                 }
             } catch (error) {
-                alert('Error assigning task');
+                alert('❌ Error assigning task via Vultr backend');
             }
         }
 
@@ -362,6 +474,11 @@
 
         // Simulation control
         async function toggleSimulation() {
+            if (emergencyMode) {
+                alert('🚨 Cannot start simulation during emergency stop');
+                return;
+            }
+
             const action = simRunning ? 'stop' : 'start';
             const btn = document.getElementById('simBtn');
 
@@ -376,24 +493,118 @@
                 if (data.status === 'started') {
                     simRunning = true;
                     btn.innerHTML = '<i class="fas fa-stop"></i> Stop Simulation';
-                    btn.style.background = '#ef4444';
-                    alert('🚀 Simulation started!');
-                } else {
+                    btn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+                    document.getElementById('simStatus').textContent = 'SIMULATION RUNNING';
+                    document.getElementById('statusIndicator').style.background = '#3b82f6';
+                } else if (data.status === 'stopped') {
                     simRunning = false;
                     btn.innerHTML = '<i class="fas fa-play"></i> Start Simulation';
-                    btn.style.background = '#10b981';
-                    alert('⏹️ Simulation stopped');
+                    btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                    document.getElementById('simStatus').textContent = 'SIMULATION READY';
+                    document.getElementById('statusIndicator').style.background = '#10b981';
                 }
 
+                loadRobots();
+
             } catch (error) {
-                alert('Error controlling simulation');
+                alert('Error controlling simulation via Vultr');
+            }
+        }
+
+        // Emergency stop
+        async function emergencyStop() {
+            try {
+                const res = await fetch(API_URL + '/api/simulation/control', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'emergency_stop'})
+                });
+
+                const data = await res.json();
+                if (data.status === 'emergency') {
+                    emergencyMode = true;
+                    simRunning = false;
+                    updateEmergencyUI();
+                    document.getElementById('aiResponse').innerHTML = '🚨 ' + data.message;
+                    loadRobots();
+                }
+            } catch (error) {
+                alert('Error activating emergency stop');
+            }
+        }
+
+        // Clear emergency
+        async function clearEmergency() {
+            try {
+                const res = await fetch(API_URL + '/api/simulation/control', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'clear_emergency'})
+                });
+
+                const data = await res.json();
+                if (data.status === 'resumed') {
+                    emergencyMode = false;
+                    updateEmergencyUI();
+                    document.getElementById('aiResponse').innerHTML = '✅ ' + data.message;
+                    loadRobots();
+                }
+            } catch (error) {
+                alert('Error clearing emergency');
+            }
+        }
+
+        function updateEmergencyUI() {
+            const statusIndicator = document.getElementById('statusIndicator');
+            const simStatus = document.getElementById('simStatus');
+            const systemHealth = document.getElementById('systemHealth');
+            const healthIndicator = document.getElementById('healthIndicator');
+
+            if (emergencyMode) {
+                statusIndicator.className = 'status-indicator emergency';
+                simStatus.textContent = 'EMERGENCY STOP';
+                simStatus.style.color = '#ef4444';
+                systemHealth.textContent = 'EMERGENCY';
+                systemHealth.style.color = '#ef4444';
+                healthIndicator.className = 'status-indicator emergency';
+
+                // Update simulation button
+                const simBtn = document.getElementById('simBtn');
+                simBtn.innerHTML = '<i class="fas fa-play"></i> Start Simulation';
+                simBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                simBtn.disabled = true;
+
+                // Add clear emergency button
+                if (!document.getElementById('clearEmergencyBtn')) {
+                    const emergencyBtn = document.getElementById('emergencyBtn');
+                    const clearBtn = document.createElement('button');
+                    clearBtn.id = 'clearEmergencyBtn';
+                    clearBtn.className = 'btn-start';
+                    clearBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                    clearBtn.innerHTML = '<i class="fas fa-check-circle"></i> Clear Emergency';
+                    clearBtn.onclick = clearEmergency;
+                    emergencyBtn.parentNode.insertBefore(clearBtn, emergencyBtn.nextSibling);
+                }
+            } else {
+                statusIndicator.className = 'status-indicator';
+                simStatus.textContent = simRunning ? 'SIMULATION RUNNING' : 'SIMULATION READY';
+                simStatus.style.color = simRunning ? '#3b82f6' : '#10b981';
+                systemHealth.textContent = 'HEALTHY';
+                systemHealth.style.color = '#10b981';
+                healthIndicator.className = 'status-indicator';
+
+                // Enable simulation button
+                const simBtn = document.getElementById('simBtn');
+                simBtn.disabled = false;
+
+                // Remove clear emergency button
+                const clearBtn = document.getElementById('clearEmergencyBtn');
+                if (clearBtn) clearBtn.remove();
             }
         }
 
         // Update simulation stats
         async function updateSimStats() {
-            if (!simRunning) return;
-
             try {
                 const res = await fetch(API_URL + '/api/simulation/stats');
                 const stats = await res.json();
@@ -403,8 +614,31 @@
                 document.getElementById('simEnergy').textContent = `${stats.energy_saved} kWh`;
                 document.getElementById('itemsToday').textContent = stats.total_items.toLocaleString();
 
+                // Update emergency mode
+                if (stats.emergency_mode !== undefined && stats.emergency_mode !== emergencyMode) {
+                    emergencyMode = stats.emergency_mode;
+                    updateEmergencyUI();
+                }
+
             } catch (error) {
                 console.log('Error updating stats:', error);
+            }
+        }
+
+        // Update system health
+        async function updateSystemHealth() {
+            try {
+                const res = await fetch(API_URL + '/api/system/health');
+                const health = await res.json();
+
+                document.getElementById('systemHealth').textContent = health.status.toUpperCase();
+                document.getElementById('systemHealth').style.color = health.status === 'healthy' ? '#10b981' : '#ef4444';
+
+                const indicator = document.getElementById('healthIndicator');
+                indicator.style.background = health.status === 'healthy' ? '#10b981' : '#ef4444';
+
+            } catch (error) {
+                console.log('Error updating system health:', error);
             }
         }
     </script>
