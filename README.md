@@ -8,6 +8,7 @@
 - **URL:** http://45.63.4.225:5000
 - **Backend:** Vultr Cloud Compute (VC2 - 2 vCPU, 4GB RAM)
 - **Status:** 24/7 Production Deployment
+Vultr IP: 45.63.4.225:5000
 - **Compliance:** ✅ Vultr Backend Requirement Met
 
 ## 🏢 Real-World Business Problem
